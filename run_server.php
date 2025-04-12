@@ -90,8 +90,8 @@ while (true) {
             continue;
         }
         switch ($message['action']) {
-            case 'checkMd5':
-                checkMd5($server, $message['params']['to'], $message['params']['md5']);
+            case 'getMd5':
+                getMd5($server, $message['params']['filePath']);
                 break;
             case 'copyFile':
                 copyFile($message['params']['fileContent'], $message['params']['to'], $message['params']['eof'], $message['params']['isFirst']);
@@ -106,26 +106,18 @@ while (true) {
 }
 
 /**
- * 检查文件md5
+ * 获取文件md5
  * @param Server $server
- * @param string $to
- * @param string $md5
+ * @param string $filePath
  * @return void
  * @throws Exception
  */
-function checkMd5(Server $server, string $to, string $md5): void
+function getMd5(Server $server, string $filePath): void
 {
-    $to = Config::getInstance()->dir . ltrim($to, '/');
-    $ok = false;
-    if (is_file($to) && md5_file($to) === $md5) {
-        $ok = true;
-    }
-    $server->write('checkMd5', [
-        'ok' => $ok,
+    $file = Config::getInstance()->dir . ltrim($filePath, '/');
+    $server->write('getMd5', [
+        'md5' => is_file($file) ? md5_file($file) : '',
     ]);
-    if ($ok) {
-        echo "Copy file to $to" . PHP_EOL;
-    }
 }
 
 /**

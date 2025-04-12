@@ -51,6 +51,10 @@ try {
     if (!$client->getAesKey()) {
         exit(1);
     }
+    if (!is_dir(Config::getInstance()->dir)) {
+        echo "Dir " . Config::getInstance()->dir . " is not a directory" . PHP_EOL;
+        exit(1);
+    }
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator(Config::getInstance()->dir),
         RecursiveIteratorIterator::LEAVES_ONLY
@@ -66,39 +70,68 @@ try {
             continue;
         }
         $filePath = str_replace("\\", '/', substr($fileInfo->getPathname(), strlen(Config::getInstance()->dir)));
-        echo "Sending file: $filePath" . PHP_EOL;
         //先做一下md5校验
-        $client->write('checkMd5', [
-            'to' => $filePath,
-            'md5' => md5_file($fileInfo->getPathname()),
-        ]);
-        $checkMd5 = $client->read();
-        if (is_array($checkMd5) && isset($checkMd5['action']) && $checkMd5['action'] === 'checkMd5' && $checkMd5['params']['ok']) {
+        $fileMd5 = getMd5($client, $filePath);
+        if ($fileMd5 && $fileMd5 === md5_file($fileInfo->getPathname())) {
+            echo "File $filePath is not changed" . PHP_EOL;
             continue;
         }
-        //md5校验失败，开始发送文件
-        $fileObj = new SplFileObject($fileInfo->getPathname());
-        $isFirst = true;
-        while (!$fileObj->eof()) {
-            $tmpFileContent = $fileObj->fread(1024 * 1024);
-            if ($tmpFileContent === false) {
-                echo "Failed to send file: $filePath" . PHP_EOL;
-                exit(1);
-            }
-            $ok = $client->write('copyFile', [
-                'fileContent' => base64_encode($tmpFileContent),
-                'to' => $filePath,
-                'isFirst' => $isFirst,
-                'eof' => $fileObj->eof()
-            ]);
-            if (!$ok) {
-                echo "Failed to send file: $filePath" . PHP_EOL;
-                exit(1);
-            }
-            $isFirst = false;
+        //发送文件
+        echo "Sending file: $filePath" . PHP_EOL;
+        if (!sendFile($client, $fileInfo->getPathname(), $filePath)) {
+            echo "Failed to send file: $filePath" . PHP_EOL;
         }
     }
 } catch (Exception $e) {
     echo $e->getMessage() . PHP_EOL;
 }
 
+/**
+ * 获取文件md5
+ * @param Client $client
+ * @param string $filePath
+ * @return string
+ * @throws Exception
+ */
+function getMd5(Client $client, string $filePath): string
+{
+    $client->write('getMd5', [
+        'filePath' => $filePath,
+    ]);
+    $fileMd5 = $client->read();
+    if (is_array($fileMd5) && $fileMd5['params']['md5']) {
+        return (string)($fileMd5['params']['md5']);
+    }
+    return '';
+}
+
+/**
+ * 发送文件
+ * @param Client $client
+ * @param string $file
+ * @param string $filePath
+ * @return bool
+ * @throws Exception
+ */
+function sendFile(Client $client, string $file, string $filePath): bool
+{
+    $fileObj = new SplFileObject($file);
+    $isFirst = true;
+    while (!$fileObj->eof()) {
+        $tmpFileContent = $fileObj->fread(1024 * 1024);
+        if ($tmpFileContent === false) {
+            return false;
+        }
+        $ok = $client->write('copyFile', [
+            'fileContent' => base64_encode($tmpFileContent),
+            'to' => $filePath,
+            'isFirst' => $isFirst,
+            'eof' => $fileObj->eof()
+        ]);
+        if (!$ok) {
+            return false;
+        }
+        $isFirst = false;
+    }
+    return true;
+}
