@@ -31,13 +31,14 @@ try {
     $serverPhar = new Phar($serverPharFile);
     $metadata = [
         'author' => '多情剑客无情剑',
-        'version' => '1.0.0',
+        'version' => '1.0.1',
     ];
     $serverPhar->setMetadata($metadata);
     $clientPhar->setMetadata($metadata);
     $comm = [
         'RSA.php',
-        'AES.php',
+        'AesCbc.php',
+        'AesGcm.php',
         'Connection.php',
         'SCParent.php',
         'Config.php',

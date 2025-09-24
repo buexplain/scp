@@ -17,20 +17,33 @@
 
 declare(strict_types=1);
 
-class AES
+/**
+ * 提供保密性，每个块依赖前一个密文块，相同明文不同密文
+ * 不提供完整性保护 → 易受填充预言攻击（Padding Oracle）、密文篡改
+ * 串行处理，无法并行加密（解密可并行）
+ */
+class AesCbc
 {
     /**
      * 密钥
      * @var string
      */
     protected string $key = '';
+    protected string $cipher_algo = '';
 
     /**
      * @param string $key 密钥，长度必须是16、24或32字节
+     * @throws Exception
      */
     public function __construct(string $key)
     {
         $this->key = $key;
+        $this->cipher_algo = match (strlen($key)) {
+            16 => 'AES-128-CBC',
+            24 => 'AES-192-CBC',
+            32 => 'AES-256-CBC',
+            default => throw new Exception("Invalid key length"),
+        };
     }
 
     /**
@@ -45,14 +58,13 @@ class AES
     /**
      * 加密
      * @param string $data 明文
-     * @param string $cipher_algo 加密算法
      * @return string
      * @throws Exception
      */
-    public function encrypt(string $data, string $cipher_algo = 'AES-192-CBC'): string
+    public function encrypt(string $data): string
     {
-        $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher_algo));
-        $encrypted = openssl_encrypt($data, $cipher_algo, $this->key, OPENSSL_RAW_DATA, $iv);
+        $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($this->cipher_algo));
+        $encrypted = openssl_encrypt($data, $this->cipher_algo, $this->key, OPENSSL_RAW_DATA, $iv);
         if ($encrypted === false) {
             throw new Exception(openssl_error_string());
         }
@@ -62,11 +74,10 @@ class AES
     /**
      * 解密
      * @param string $encryptedData 密文
-     * @param string $cipher_algo 加密算法
      * @return string
      * @throws Exception
      */
-    public function decrypt(string $encryptedData, string $cipher_algo = 'AES-192-CBC'): string
+    public function decrypt(string $encryptedData): string
     {
         $head = substr($encryptedData, 0, 4);
         $head = unpack('N', $head);
@@ -75,7 +86,7 @@ class AES
         }
         $iv = substr($encryptedData, 4, $head[1]);
         $encryptedData = substr($encryptedData, 4 + $head[1]);
-        $ret = openssl_decrypt($encryptedData, $cipher_algo, $this->key, OPENSSL_RAW_DATA, $iv);
+        $ret = openssl_decrypt($encryptedData, $this->cipher_algo, $this->key, OPENSSL_RAW_DATA, $iv);
         if ($ret === false) {
             throw new Exception(openssl_error_string());
         }

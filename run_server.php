@@ -18,7 +18,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/RSA.php';
-require_once __DIR__ . '/AES.php';
+require_once __DIR__ . '/AesCbc.php';
+require_once __DIR__ . '/AesGcm.php';
 require_once __DIR__ . '/Connection.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/SCParent.php';
@@ -136,6 +137,9 @@ function copyFile(string $fileContent, string $to, bool $eof, bool $isFirst): vo
             mkdir(dirname($to), 0777, true);
         }
         file_put_contents($to, base64_decode($fileContent));
+        if (function_exists('chmod')) {
+            @chmod($to, 0666 & ~umask());
+        }
     } else {
         file_put_contents($to, base64_decode($fileContent), FILE_APPEND);
     }

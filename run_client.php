@@ -18,7 +18,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/RSA.php';
-require_once __DIR__ . '/AES.php';
+require_once __DIR__ . '/AesCbc.php';
+require_once __DIR__ . '/AesGcm.php';
 require_once __DIR__ . '/Connection.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/SCParent.php';

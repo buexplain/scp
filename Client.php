@@ -23,9 +23,10 @@ declare(strict_types=1);
 class Client extends SCParent
 {
     /**
-     * @var string 服务端的公钥
+     * 服务端的公钥
+     * @var RSA|null
      */
-    protected string $serverPublicKey = '';
+    protected ?RSA $remoteRsa = null;
 
     /**
      * 获取服务端的公钥
@@ -69,7 +70,7 @@ class Client extends SCParent
                 echo "Invalid server public key timestamp" . PHP_EOL;
                 return false;
             }
-            $this->serverPublicKey = $message['serverPublicKey'];
+            $this->remoteRsa = new RSA(null, $message['serverPublicKey']);
             return true;
         } catch (Exception $e) {
             echo "Failed to get server public key: " . $e->getMessage() . PHP_EOL;
@@ -84,8 +85,7 @@ class Client extends SCParent
     public function sendClientPublicKey(): bool
     {
         try {
-            $ras = new RSA(null, $this->serverPublicKey);
-            $clientPublicKey = base64_encode($ras->encrypt($this->ras->getPublicKey()));
+            $clientPublicKey = base64_encode($this->remoteRsa->encrypt($this->localRsa->getPublicKey()));
             $timestamp = time();
             $data = $this->conn->getLocalAddr();
             $data[] = $timestamp;
@@ -129,7 +129,7 @@ class Client extends SCParent
             return false;
         }
         try {
-            $this->aes = new AES($this->ras->decrypt(base64_decode($message['aesKey'])));
+            $this->aes = new AesGcm($this->localRsa->decrypt(base64_decode($message['aesKey'])));
             return true;
         } catch (Exception $e) {
             echo "Failed to decrypt aes key: " . $e->getMessage() . PHP_EOL;

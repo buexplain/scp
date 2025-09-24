@@ -31,12 +31,12 @@ class SCParent
      * RSA 加密解密类
      * @var null|RSA
      */
-    protected ?RSA $ras = null;
+    protected ?RSA $localRsa = null;
     /**
-     * AES的加密解密密钥
-     * @var null|AES
+     * AES 加密解密类
+     * @var AesGcm|null
      */
-    public ?AES $aes = null;
+    public ?AesGcm $aes = null;
 
     /**
      * @param Connection $connection
@@ -56,7 +56,7 @@ class SCParent
         $privateKey = '';
         openssl_pkey_export($res, $privateKey);
         $publicKeyDetails = openssl_pkey_get_details($res);
-        $this->ras = new RSA($privateKey, $publicKeyDetails['key']);
+        $this->localRsa = new RSA($privateKey, $publicKeyDetails['key']);
     }
 
     /**
@@ -91,6 +91,12 @@ class SCParent
             'action' => $action,
             'params' => $params,
         ));
-        return $this->conn->write($this->aes->encrypt($data));
+        $add = [
+            time(),
+        ];
+        $add = array_merge($add, $this->conn->getLocalAddr());
+        $add = array_merge($add, $this->conn->getRemoteAddr());
+        $add = sha1(implode('|', $add));
+        return $this->conn->write($this->aes->encrypt($data, $add));
     }
 }

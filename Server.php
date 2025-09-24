@@ -23,14 +23,15 @@ declare(strict_types=1);
 class Server extends SCParent
 {
     /**
-     * @var string 客户端的公钥
+     * 客户端的公钥
+     * @var RSA|null
      */
-    protected string $clientPublicKey = '';
+    protected ?RSA $remoteRsa = null;
 
     public function __construct(Connection $conn)
     {
         parent::__construct($conn);
-        $this->aes = new AES(openssl_random_pseudo_bytes(32));
+        $this->aes = new AesGcm(openssl_random_pseudo_bytes(24));
     }
 
     /**
@@ -42,7 +43,7 @@ class Server extends SCParent
         $timestamp = time();
         $data = $this->conn->getRemoteAddr();
         $data[] = $timestamp;
-        $data[] = $this->ras->getPublicKey();
+        $data[] = $this->localRsa->getPublicKey();
         sort($data);
         $sign = hash_hmac(
             'sha256',
@@ -51,7 +52,7 @@ class Server extends SCParent
         );
         $this->conn->write(json_encode(array(
             'action' => 'sendServerPublicKey',
-            'serverPublicKey' => $this->ras->getPublicKey(),
+            'serverPublicKey' => $this->localRsa->getPublicKey(),
             'timestamp' => $timestamp,
             'sign' => $sign,
         )));
@@ -84,7 +85,7 @@ class Server extends SCParent
                 echo "Invalid client public key timestamp" . PHP_EOL;
                 return false;
             }
-            $this->clientPublicKey = $this->ras->decrypt(base64_decode($clientPublicKey));
+            $this->remoteRsa = new RSA(null, $this->localRsa->decrypt(base64_decode($clientPublicKey)));
         } catch (Exception $e) {
             echo "Failed to decrypt client public key: " . $e->getMessage() . PHP_EOL;
             return false;
@@ -99,10 +100,9 @@ class Server extends SCParent
     public function sendAesKey(): void
     {
         try {
-            $rsa = new RSA(null, $this->clientPublicKey);
             $this->conn->write(json_encode(array(
                 'action' => 'sendAesKey',
-                'aesKey' => base64_encode($rsa->encrypt($this->aes->getKey())),
+                'aesKey' => base64_encode($this->remoteRsa->encrypt($this->aes->getKey())),
             )));
         } catch (Exception $e) {
             echo "Failed to encrypt aes key: " . $e->getMessage() . PHP_EOL;
